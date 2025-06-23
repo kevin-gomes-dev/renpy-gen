@@ -142,6 +142,7 @@ class DialogueManager:
     # If triple, will triple quote all speech and text. BUG currently with voice as it will do one voice for the entire lines if the original line was limited.
     # If pre_say, will put this statement before each say like if you wanted to do a voice or something. Could have pre_say be python function call that would do something
     # TODO: Implement a way to handle menus and choices. Store separate state, recursively calling for each choice? How will we know the choice that was selected to determine the state to resume at?
+    # TODO: Refacotr, seperate logic, and maybe simplify if possible?
     def gen_renpy(
         self,write_file: str = None,
         indent_base = 4,

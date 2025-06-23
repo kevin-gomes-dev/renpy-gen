@@ -1,0 +1,1 @@
+Custom code to create a code generator for renpy, very basic and cannot handle choices fluently due to being unable to know what choice was selected to keep that state. But should be able to at least (or in future) handle indefinite nested choices

@@ -1,4 +1,3 @@
-# TODO: Fix all tests from the changes made recently
 import pytest, tempfile,os
 from dialogue_manager import DialogueManager
 from dialogue import Dialogue
@@ -27,19 +26,19 @@ The end!'''
         return DialogueManager(sample,logging=False)
         
     def test_setup_bytes(self,sample):
-        assert len(DialogueManager(sample.encode()).full_dialogue) == 6
+        assert len(DialogueManager(byte_data=sample.encode()).full_dialogue) == 6
         
     def test_setup_string(self,sample):
-        assert len(DialogueManager(sample).full_dialogue) == 6
+        assert len(DialogueManager(str_data=sample).full_dialogue) == 6
         
     def test_setup_filename(self,sample):
         # Not making it delete auto since method requires a path string rather than the io object
         temp = tempfile.NamedTemporaryFile('wb+',dir='./',delete=False)
         try:
-            temp.write(sample.encode())
             fn = temp.name
+            temp.write(sample.encode())
             temp.close()
-            assert len(DialogueManager(fn).full_dialogue) > 0
+            assert len(DialogueManager(fn).full_dialogue) == 6
         finally:
             os.remove(os.path.join('./',fn))
         

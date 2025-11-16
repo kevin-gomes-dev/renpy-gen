@@ -142,7 +142,6 @@ class DialogueManager:
     # If triple, will triple quote all speech and text. BUG currently with voice as it will do one voice for the entire lines if the original line was limited.
     # If pre_say, will put this statement before each say like if you wanted to do a voice or something. Could have pre_say be python function call that would do something
     # TODO: Implement a way to handle menus and choices. Store separate state, recursively calling for each choice? How will we know the choice that was selected to determine the state to resume at?
-    # TODO: Refacotr, seperate logic, and maybe simplify if possible?
     def gen_renpy(
         self,write_file: str = None,
         indent_base = 4,
@@ -172,8 +171,11 @@ class DialogueManager:
         
         # Establish all vars from state given
         
-        # Our ever growing string containing all the code.
+        # Our ever growing string containing all the code in an iteration. Resets each iteration.
         return_string = state.get('return_string') or ''
+        
+        # Our ever growing final string containing all generated code.
+        final_code_string = ''
         
         # Every dialogue we've previously encountered while iterating
         prev_diags: dict[str,Dialogue] = state.get('prev_diags') or {}
@@ -213,7 +215,7 @@ class DialogueManager:
                     d = self.full_dialogue[i][0]
                     if d.char not in markers.values():
                         self.dequote(i)
-                        d.text = d.text.replace('"','\\"').replace("'","\\'").replace('%','\%')
+                        d.text = d.text.replace('"','\\"').replace("'","\\'").replace('%','\\%')
                         self.enquote(i)
             else:
                 i = 0
@@ -221,8 +223,8 @@ class DialogueManager:
                     d = self.full_dialogue[i][0]
                     if d.char not in markers.values():
                         d.text = d.text.replace('"','\\"').replace("'","\\'")
-                        d.triple_into_single_quote(i)
-                i += 1
+                        self.single_into_triple_quote(i)
+                    i += 1
             
             # Next, if we are on a character, determine the img statement to use. This includes whether to use a hide.
             # If we have already shown the same img, no need to. If we've already hidden, no need to
@@ -251,7 +253,9 @@ class DialogueManager:
                             state[k] = results[k]
                         hidden = state.get('hidden',{})
                         prev_diags = state.get('prev_diags',{})
-                        return_string += state.get('return_string','')
+                        final_code_string += state.get('return_string','')
+                        state['return_string'] = ''
+                        state['final_code_string'] = final_code_string
                         indent = state.get('indent',indent)
                         index += 1
                         continue
@@ -262,20 +266,27 @@ class DialogueManager:
                     if prev_d and prev_d.char != markers.get('MENU'):
                         # Handle everything with images, pre-says, etc...
                         img = d.img
-                        if img:
-                            # What is the character used in the show? EX: show char char_normal
-                            img_char = img.split(' ')[1]
                         prev_char_diag = prev_diags.get(d.char)
+                        # If we have an img and the char is currently or last used hidden
+                        if img and img.startswith('hide') or d.char in hidden or (prev_char_diag and not prev_char_diag.img):
+                            img = ''
+                        else:
+                            # What is the character used in the show? EX: show char char_normal. If no prev diag or already hidden, no need
+                            # print(bool(img))
+                            # print(bool(img.startswith('hide')))
+                            # print(bool(d.char in hidden))
+                            # print(bool(prev_char_diag and not prev_char_diag.img))
+                            img_char = img.split(' ')[1]
                         # When you change an img/hide, you need to update everyone's aligns only if they need to be updated.
                         # If prev_imgs length changes, we added or removed someone. To check for removes, make a list = prev_imgs where img doesn't start with 'hide'
                         # On that list, if the length of it is different from the previously recorded length, update aligns.
-                        # Note that aligns iterate sequentially, so the order you insert characters matter. Our way is first one moves right
+                        # Note that aligns iterate sequentially, so the order you insert characters matter. Our way is all move right to make room for left entrance
                         
                         # If the img is hidden/was last hidden, don't bother even setting up prev diag or adding a hide statement
-                        if img and img.startswith('hide') and (d.char in hidden or prev_diags.get(d.char) is None):
-                            img = ''
+                        # if img and img.startswith('hide') and (d.char in hidden or prev_char_diag is None):
+                        #     img = ''
                         # No previous and have img
-                        elif not prev_char_diag and img:
+                        if not prev_char_diag and img:
                             prev_diags[d.char] = d
                             hidden.discard(d.char)
                         elif prev_char_diag:
@@ -334,9 +345,11 @@ class DialogueManager:
                     if nar_pre_say:
                         return_string += ' '*indent_base*indent + nar_pre_say
                     return_string += ' '*indent_base*indent + d.text + '\n'
-                # Update state
+                # Update state and final return string
+                final_code_string += return_string
+                return_string = ''
                 state.update({
-                    'return_string':return_string,
+                    'final_code_string':final_code_string,
                     'indent':indent,
                     'hidden':hidden,
                     'prev_diags':prev_diags,
@@ -348,7 +361,7 @@ class DialogueManager:
             self.log('Visible chars on script end: ' + str(new_chars_on_screen))   
             if write_file:
                 with open(write_file,'wb') as file:
-                    file.write(return_string.encode())
+                    file.write(final_code_string.encode())
         finally:
             diags = copy.deepcopy(temp_full_dialogue)
         if indent != 0:
@@ -365,7 +378,7 @@ class DialogueManager:
         dialogue_pattern = r"^(.+)\n(.+)"
         narration_pattern = r"^(?!.+\n).+"
         self.original_byte_data = byte_data
-        self.original_lines = DialogueManager.decode_bytes(byte_data)
+        self.original_lines = DialogueManager.decode_bytes(byte_data).rstrip()
         lines = self.original_lines.split('\n')
         i = 0
         
@@ -374,7 +387,10 @@ class DialogueManager:
         
         while i < len(lines):
             line = lines[i].replace('\t','').strip()
-            
+            if line == '' or not line:
+                self.log(f'Iteration {i} - Line was skipped. line: {line}')
+                i += 1  # Skip any unmatched lines
+                continue
             # Check for dialogue (character + speech)
             matcher = map(lambda x: x.replace('\t','').strip(),lines[i:i+2])
             char_match = re.match(dialogue_pattern, "\n".join(matcher))
@@ -398,9 +414,6 @@ class DialogueManager:
                 self.full_dialogue.append([dialogue,dialogue_index])
                 i += 1
                 dialogue_index += 1
-            else:
-                self.log(f'Line was skipped. line: {line}')
-                i += 1  # Skip any unmatched lines
 
     # Validate this instance, that is, the parsed dialogue and narration can be reconstructed into its original setup (Currently only one format)
     def validate(self):
@@ -432,7 +445,7 @@ class DialogueManager:
                 start = max(i - 2,0)
                 end = min(i+3,len(blocks))
                 for j in range(start,end):
-                    self.log(blocks[j][0].__dict__)
+                    self.log(f'{j} - {blocks[j][0].__dict__}')
                 invalid = True
         # self.log(f'\nReconstructed Text:\n{reconstructed_lines}')
         if reconstructed_lines:

@@ -90,7 +90,7 @@ def main():
     img_dict = populate_img_dict(imgs)
     # print('IMAGE DICT:',img_dict,'\n')
     dm = DialogueManager(fn=sample_f,img_dict=img_dict,char_dict=char_dict,logging=True)
-    fn = '/home/plow/Desktop/lin_stuff/output.txt'
+    fn = './output.txt'
     
     valid = dm.validate()
     print(f'Full len: {len(dm)}, narration: {len([i for i in dm if i.type == 'NARR'])}, character: {len([i for i in dm if i.type == 'CHAR' and i.char not in dm.MARKERS.values()])}')

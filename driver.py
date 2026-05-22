@@ -104,3 +104,6 @@ def main():
         for k,v in s.items():
             if k != 'return_string':
                 print('Key',k,'Value',v)
+
+if __name__ == '__main__':
+    main()

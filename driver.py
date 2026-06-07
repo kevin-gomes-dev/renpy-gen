@@ -89,7 +89,7 @@ def main():
             
     img_dict = populate_img_dict(imgs)
     # print('IMAGE DICT:',img_dict,'\n')
-    dm = DialogueManager(fn=sample_f,img_dict=img_dict,char_dict=char_dict,logging=False)
+    dm = DialogueManager(fn=sample_f,img_dict=img_dict,char_dict=char_dict,logging=True)
     fn = './output.txt'
     
     valid = dm.validate()

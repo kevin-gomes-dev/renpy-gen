@@ -24,7 +24,7 @@ import copy
 # This class is no different from just having a list of Dialogue objects. It offers a way to keep things ordered and validate
 # char_dict can be used to identify characters, offering a script-to-custom replacement (for example, A becomes Abigail in the character). If provided, the rest of the character becomes emotion
 # Emotion can be used for img or any purpose
-# TO DO: Modify to allow taking 2 regexs for character and narration and setting up based on them. Also change validation to be dynamic in this way
+# TODO: Modify to allow taking 2 regexs for character and narration and setting up based on them. Also change validation to be dynamic in this way
 class DialogueManager:
     MARKERS: dict[str,str] = {
         'SCENE':'<S>',
@@ -135,6 +135,53 @@ class DialogueManager:
             return_string += ' '*indent_base*indent + d.text + '\n'
         return_dict['return_string'] = return_string
         return return_dict
+    
+    def handle_narration_v2_helper(self,index: int,triple: bool = False):
+        '''
+        Check ahead for other narration. Afterwards, return a tuple containing the entire narration string to add as well as how many
+        '''
+        diag = self.full_dialogue[index][0]
+        if diag.type != Dialogue.NARRATION_TYPE:
+            print('Index given does not point to narration.')
+            return ('',0)
+        if not triple:
+            print(f'"Index: {index} Result: {(diag.text,1)}')
+            return (f'"{diag.text}"',1)
+        # Number of diags to skip
+        diag_count = 1
+        result_string = '"""\n' + diag.text + '\n'
+        i = index + 1
+        while i < len(self.full_dialogue) and self.full_dialogue[i][0].type == Dialogue.NARRATION_TYPE:
+            diag = self.full_dialogue[i][0]
+            result_string += '\n' + diag.text + '\n'
+            diag_count += 1
+            i += 1
+        result_string += '"""'
+        print('Index',index,'Result',(result_string,diag_count))
+        return (result_string,diag_count)
+        
+    
+    def gen_renpy_v2(self,triple: bool = False):
+        '''
+        Version 2, trying to be simpler. First design inefficient, then increase over time.
+        1. Get text. If narration, determine if 3 lines. If so, add line in between """ """. After, while the next line is narration,
+        add \n\n after the last narration. Then determine how many lines you did and skip ahead that many
+        '''
+        result_code = ''
+        i = 0
+        while i < len(self.full_dialogue):
+            diag = self.full_dialogue[i][0]
+            if diag.type == Dialogue.NARRATION_TYPE:
+                (narr_code,skip_count) = self.handle_narration_v2_helper(i,triple)
+                result_code += narr_code
+                # Skip ahead x amount of lines and end iteration early
+                i += skip_count
+                continue
+            i += 1
+                
+                    
+                    
+        
     
     # Generate renpy code based on all available info. Optimize to not do duplicate/unecessary statements. Currently a naive implementation. If write_file, will attempt to write there
     # indent_base controls how many spaces are considered an indent (renpy doesn't like the \t char)
@@ -265,10 +312,11 @@ class DialogueManager:
                     # If we are doing a menu, don't do anything with imgs, just simply have a say statement
                     if prev_d and prev_d.char != markers.get('MENU'):
                         # Handle everything with images, pre-says, etc...
+                        # print(d.text)
                         img = d.img
                         prev_char_diag = prev_diags.get(d.char)
-                        # If we have an img and the char is currently or last used hidden
-                        if img and img.startswith('hide') or d.char in hidden or (prev_char_diag and not prev_char_diag.img):
+                        # If we don't have img or do have an img and the char is currently or last used hidden
+                        if not img or (d.char in hidden or (prev_char_diag and not prev_char_diag.img)):
                             img = ''
                         else:
                             # What is the character used in the show? EX: show char char_normal. If no prev diag or already hidden, no need

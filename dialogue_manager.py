@@ -136,32 +136,59 @@ class DialogueManager:
         return_dict['return_string'] = return_string
         return return_dict
     
-    def handle_narration_v2_helper(self,index: int,triple: bool = False):
+    def handle_narration_v2_helper(self,index: int,triple: bool = False, add_newline = True):
         '''
-        Check ahead for other narration. Afterwards, return a tuple containing the entire narration string to add as well as how many
+        Check ahead for other narration. Afterwards, return a tuple containing the entire narration string to add as well as how many to skip
         '''
+        newline = ''
+        if add_newline:
+            newline = '\n'
         diag = self.full_dialogue[index][0]
         if diag.type != Dialogue.NARRATION_TYPE:
             print('Index given does not point to narration.')
             return ('',0)
         if not triple:
-            print(f'"Index: {index} Result: {(diag.text,1)}')
-            return (f'"{diag.text}"',1)
+            # print(f'"Index: {index} Result: {(diag.text,1)}')
+            return (f"'{diag.text}'{newline}",1)
         # Number of diags to skip
-        diag_count = 1
+        skip_count = 1
         result_string = '"""\n' + diag.text + '\n'
         i = index + 1
         while i < len(self.full_dialogue) and self.full_dialogue[i][0].type == Dialogue.NARRATION_TYPE:
             diag = self.full_dialogue[i][0]
             result_string += '\n' + diag.text + '\n'
-            diag_count += 1
+            skip_count += 1
             i += 1
-        result_string += '"""'
-        print('Index',index,'Result',(result_string,diag_count))
-        return (result_string,diag_count)
+        result_string += '"""' + newline
+        # print('Narr Index',index,'Result',(result_string,skip_count))
+        return (result_string,skip_count)
         
-    
+    def handle_character_v2_helper(self,index: int, triple: bool = False, add_newline = True):
+        '''
+        Returns tuple containing character text and how many lines to skip (if multiple)
+        '''
+        newline = ''
+        if add_newline:
+            newline = '\n'
+        diag = self.full_dialogue[index][0]
+        skip_count = 1
+        if not triple:
+            return (f"{diag.char} '{diag.text}'{newline}",skip_count)
+        result_string = '"""\n' + diag.char + ' ' + diag.text + '\n'
+        i = index + 1
+        loop_diag = self.full_dialogue[i][0]
+        while i < len(self.full_dialogue) and loop_diag.char == diag.char:
+            loop_diag = self.full_dialogue[i][0]
+            result_string += '\n' + loop_diag.char + ' ' + loop_diag.text + '\n'
+            skip_count += 1
+            i += 1
+            loop_diag = self.full_dialogue[i][0]
+        result_string += '"""' + newline
+        # print('Char Index',index,'Result',(result_string,skip_count))
+        return (result_string,skip_count)
+        
     def gen_renpy_v2(self,triple: bool = False):
+        print(self.char_dict)
         '''
         Version 2, trying to be simpler. First design inefficient, then increase over time.
         1. Get text. If narration, determine if 3 lines. If so, add line in between """ """. After, while the next line is narration,
@@ -172,12 +199,22 @@ class DialogueManager:
         while i < len(self.full_dialogue):
             diag = self.full_dialogue[i][0]
             if diag.type == Dialogue.NARRATION_TYPE:
-                (narr_code,skip_count) = self.handle_narration_v2_helper(i,triple)
-                result_code += narr_code
+                (narr_result_code,narr_skip_count) = self.handle_narration_v2_helper(i,triple)
+                result_code += narr_result_code
                 # Skip ahead x amount of lines and end iteration early
-                i += skip_count
+                i += narr_skip_count
                 continue
+            # Since it wasn't narration, we will move through one dialogue at a time
+            elif diag.type == Dialogue.CHARACTER_TYPE:
+                # Get the character from the list, making a say statement
+                (char_result_code,char_skip_count) = self.handle_character_v2_helper(i,triple)
+                result_code += char_result_code
+                i += char_skip_count
+                continue
+            # Failsafe, shouldn't ever happen
             i += 1
+            print("Shouldn't have incremented i here. i after increment = " + str(i))
+        print('Result:\n',result_code)
                 
                     
                     

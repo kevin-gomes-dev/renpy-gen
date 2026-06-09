@@ -136,10 +136,31 @@ class DialogueManager:
         return_dict['return_string'] = return_string
         return return_dict
     
+    def get_triple_quoted_text(self,index: int,add_newline = True):
+        '''
+        Gets the dialogue at index, and any subsequent ones with same char.
+        Returns tuple (string, diag_count) which will be >= 1.
+        '''
+        newline = ''
+        if add_newline:
+            newline = '\n'
+        diag = self.full_dialogue[index][0]
+        # How to start the string and what each iteration adds
+        start_str = '"""\n' + diag.text + '\n'
+        repeat_str = '\n' + 'text' + '\n'
+        if diag.type == Dialogue.CHARACTER_TYPE:
+            start_str = diag.char + ' ' + '"""\n' + diag.text + '\n'
+        result_str = start_str
+        
+        i = index + 1
+        while i < len(self.full_dialogue) and self.full_dialogue[i][0].char == diag.char:
+            new_diag = self.full_dialogue[i][0]
+            result_str += repeat_str.replace('char',new_diag.char).replace('text',new_diag.text)
+            i += 1
+        result_str += '"""' + newline
+        return (result_str,i - index)
+            
     def handle_narration_v2_helper(self,index: int,triple: bool = False, add_newline = True):
-        '''
-        Check ahead for other narration. Afterwards, return a tuple containing the entire narration string to add as well as how many to skip
-        '''
         newline = ''
         if add_newline:
             newline = '\n'
@@ -150,45 +171,22 @@ class DialogueManager:
         if not triple:
             # print(f'"Index: {index} Result: {(diag.text,1)}')
             return (f"'{diag.text}'{newline}",1)
-        # Number of diags to skip
-        skip_count = 1
-        result_string = '"""\n' + diag.text + '\n'
-        i = index + 1
-        while i < len(self.full_dialogue) and self.full_dialogue[i][0].type == Dialogue.NARRATION_TYPE:
-            diag = self.full_dialogue[i][0]
-            result_string += '\n' + diag.text + '\n'
-            skip_count += 1
-            i += 1
-        result_string += '"""' + newline
-        # print('Narr Index',index,'Result',(result_string,skip_count))
-        return (result_string,skip_count)
+        # Triple quote
+        return self.get_triple_quoted_text(index,add_newline)
+
         
     def handle_character_v2_helper(self,index: int, triple: bool = False, add_newline = True):
-        '''
-        Returns tuple containing character text and how many lines to skip (if multiple)
-        '''
         newline = ''
         if add_newline:
             newline = '\n'
         diag = self.full_dialogue[index][0]
-        skip_count = 1
         if not triple:
-            return (f"{diag.char} '{diag.text}'{newline}",skip_count)
-        result_string = '"""\n' + diag.char + ' ' + diag.text + '\n'
-        i = index + 1
-        loop_diag = self.full_dialogue[i][0]
-        while i < len(self.full_dialogue) and loop_diag.char == diag.char:
-            loop_diag = self.full_dialogue[i][0]
-            result_string += '\n' + loop_diag.char + ' ' + loop_diag.text + '\n'
-            skip_count += 1
-            i += 1
-            loop_diag = self.full_dialogue[i][0]
-        result_string += '"""' + newline
-        # print('Char Index',index,'Result',(result_string,skip_count))
-        return (result_string,skip_count)
+            return (f"{diag.char} '{diag.text}'{newline}",1)
+        # Triple quote
+        return self.get_triple_quoted_text(index,add_newline)
         
     def gen_renpy_v2(self,triple: bool = False):
-        print(self.char_dict)
+        # print(self.char_dict)
         '''
         Version 2, trying to be simpler. First design inefficient, then increase over time.
         1. Get text. If narration, determine if 3 lines. If so, add line in between """ """. After, while the next line is narration,
